@@ -1,153 +1,109 @@
-#!/usr/bin/bash
+#!/bin/bash
+# Aggregate traffic counters rather than binding a trigger to one NIC.
+set -euo pipefail
 
-# UGREEN multi-interface network monitor
-# Monitors all physical ethernet interfaces and controls network LED
-
-# Function for cleanup
-exit-ugreen-netdevmon-multi() {
-    if [[ -f "/var/run/ugreen-netdevmon-multi.lock" ]]; then
-        rm "/var/run/ugreen-netdevmon-multi.lock"
-    fi
-    exit 0
-}
-
-trap 'exit-ugreen-netdevmon-multi' EXIT INT TERM
-
-# Check if already running
-if [[ -f "/var/run/ugreen-netdevmon-multi.lock" ]]; then
-    echo "ugreen-netdevmon-multi already running!"
-    exit 1
+# Keep the process lock open; another invocation must never remove our lock.
+exec 9>"${UGREEN_RUN_ROOT:-/run}/ugreen-netdevmon-multi.lock"
+flock -n 9 || { echo 'ugreen-netdevmon-multi already running' >&2; exit 1; }
+config_root=${UGREEN_CONFIG_ROOT:-/etc}
+if [[ -f "$config_root/ugreen-leds/network.conf" ]]; then
+    source "$config_root/ugreen-leds/network.conf"
 fi
-touch /var/run/ugreen-netdevmon-multi.lock
-
-# Load configuration
-if [[ -f /etc/ugreen-leds.conf ]]; then
-    source /etc/ugreen-leds.conf
+if [[ -f "$config_root/ugreen-leds.conf" ]]; then
+    source "$config_root/ugreen-leds.conf"
 fi
 
-# Network LED settings
-NETDEV_BLINK_TX=${NETDEV_BLINK_TX:=1}
-NETDEV_BLINK_RX=${NETDEV_BLINK_RX:=1}
-NETDEV_BLINK_INTERVAL=${NETDEV_BLINK_INTERVAL:=200}
-COLOR_NETDEV_NORMAL=${COLOR_NETDEV_NORMAL:="255 165 0"}
-BRIGHTNESS_NETDEV_LED=${BRIGHTNESS_NETDEV_LED:=255}
-CHECK_NETDEV_INTERVAL=${CHECK_NETDEV_INTERVAL:=60}
-CHECK_LINK_SPEED=${CHECK_LINK_SPEED:=false}
-CHECK_LINK_SPEED_DYNAMIC=${CHECK_LINK_SPEED_DYNAMIC:=false}
-
-led="netdev"
-
-# Detect all physical ethernet interfaces
-get_physical_interfaces() {
-    ls /sys/class/net/ | grep -E '^(eth|enp|eno|enx|nic)' | while read iface; do
-        # Check if it's a physical device (not virtual)
-        if [ -e "/sys/class/net/$iface/device" ]; then
-            echo "$iface"
-        fi
-    done
-}
-
-# Initialize LED
-if [[ -d /sys/class/leds/$led ]]; then
-    modprobe ledtrig-netdev 2>/dev/null || true
-    echo netdev > /sys/class/leds/$led/trigger
-    echo $NETDEV_BLINK_TX > /sys/class/leds/$led/tx
-    echo $NETDEV_BLINK_RX > /sys/class/leds/$led/rx
-    echo $NETDEV_BLINK_INTERVAL > /sys/class/leds/$led/interval
-    echo "$COLOR_NETDEV_NORMAL" > /sys/class/leds/$led/color
-    echo $BRIGHTNESS_NETDEV_LED > /sys/class/leds/$led/brightness
-else
-    echo "Network LED not found at /sys/class/leds/$led"
-    exit 1
+# Roots are overridable to exercise counter handling without LED hardware.
+net_root=${UGREEN_NET_ROOT:-/sys/class/net}
+led_root=${UGREEN_LED_ROOT:-/sys/class/leds/netdev}
+mode=${NETWORK_MODE:-all}
+selected=${NETWORK_INTERFACES:-}
+interval=${NETDEV_POLL_INTERVAL:-0.1}
+[[ -d "$led_root" ]] || { echo "Network LED not found: $led_root" >&2; exit 1; }
+if [[ "$led_root" = /sys/* ]]; then
+    modprobe ledtrig-oneshot
 fi
+printf 'oneshot\n' > "$led_root/trigger"
+printf '%s\n' "${LED_INVERT:-0}" > "$led_root/invert"
+printf '%s\n' "${NETDEV_BLINK_INTERVAL:-200}" > "$led_root/delay_on"
+printf '%s\n' "${NETDEV_BLINK_INTERVAL:-200}" > "$led_root/delay_off"
+printf '%s\n' "${BRIGHTNESS_NETDEV_LED:-255}" > "$led_root/brightness"
+printf '%s\n' "${COLOR_NETDEV_NORMAL:-255 165 0}" > "$led_root/color"
 
-echo "UGREEN multi-interface network monitor started"
-
-# Monitor all interfaces
-while true; do
-    interfaces=($(get_physical_interfaces))
-
-    if [ ${#interfaces[@]} -eq 0 ]; then
-        echo "No physical ethernet interfaces found"
-        sleep $CHECK_NETDEV_INTERVAL
-        continue
-    fi
-
-    echo "Monitoring interfaces: ${interfaces[*]}"
-
-    # Find first active interface for LED trigger
-    active_iface=""
-    max_speed=0
-
-    for iface in "${interfaces[@]}"; do
-        operstate=$(cat /sys/class/net/$iface/operstate 2>/dev/null || echo "down")
-
-        if [ "$operstate" = "up" ]; then
-            speed=$(cat /sys/class/net/$iface/speed 2>/dev/null || echo "0")
-
-            # Use interface with highest speed as primary
-            if [ "$speed" -gt "$max_speed" ]; then
-                max_speed=$speed
-                active_iface=$iface
+get_interfaces() {
+    local path iface
+    if [[ -n "$selected" && "$mode" != all ]]; then
+        for iface in $selected; do
+            [[ "$iface" =~ ^[a-zA-Z0-9_.:-]+$ ]] || continue
+            if [[ -d "$net_root/$iface" ]]; then
+                printf '%s\n' "$iface"
+                if [[ "$mode" = single ]]; then break; fi
             fi
-        fi
-    done
-
-    if [ ! -z "$active_iface" ]; then
-        # Set LED trigger to most active interface
-        current_device=$(cat /sys/class/leds/$led/device_name 2>/dev/null || echo "")
-
-        if [ "$current_device" != "$active_iface" ]; then
-            echo "Switching to interface: $active_iface (${max_speed}Mbps)"
-            echo $active_iface > /sys/class/leds/$led/device_name
-            echo 1 > /sys/class/leds/$led/link
-        fi
-
-        # Update color based on link speed if enabled
-        if [ "$CHECK_LINK_SPEED" = "true" ] || [ "$CHECK_LINK_SPEED_DYNAMIC" = "true" ]; then
-            if [ "$CHECK_LINK_SPEED_DYNAMIC" = "true" ]; then
-                # Calculate dynamic color
-                low_speed=${CHECK_LINK_SPEED_DYNAMIC_SPEED_LOW:-0}
-                high_speed=${CHECK_LINK_SPEED_DYNAMIC_SPEED_HIGH:-10000}
-                low_color=(${CHECK_LINK_SPEED_DYNAMIC_COLOR_LOW:-255 0 0})
-                high_color=(${CHECK_LINK_SPEED_DYNAMIC_COLOR_HIGH:-0 255 0})
-
-                # Linear interpolation between low and high colors
-                ratio=$(awk -v speed="$max_speed" -v low="$low_speed" -v high="$high_speed" \
-                    'BEGIN {print (speed - low) / (high - low)}')
-                ratio=$(awk -v r="$ratio" 'BEGIN {print (r < 0) ? 0 : (r > 1) ? 1 : r}')
-
-                r=$(awk -v ratio="$ratio" -v low="${low_color[0]}" -v high="${high_color[0]}" \
-                    'BEGIN {printf "%.0f", low + ratio * (high - low)}')
-                g=$(awk -v ratio="$ratio" -v low="${low_color[1]}" -v high="${high_color[1]}" \
-                    'BEGIN {printf "%.0f", low + ratio * (high - low)}')
-                b=$(awk -v ratio="$ratio" -v low="${low_color[2]}" -v high="${high_color[2]}" \
-                    'BEGIN {printf "%.0f", low + ratio * (high - low)}')
-
-                echo "$r $g $b" > /sys/class/leds/$led/color
-            else
-                # Fixed color mapping
-                case "$max_speed" in
-                    100)
-                        echo "${COLOR_NETDEV_LINK_100:-0 255 0}" > /sys/class/leds/$led/color
-                        ;;
-                    1000)
-                        echo "${COLOR_NETDEV_LINK_1000:-0 0 255}" > /sys/class/leds/$led/color
-                        ;;
-                    2500)
-                        echo "${COLOR_NETDEV_LINK_2500:-255 255 0}" > /sys/class/leds/$led/color
-                        ;;
-                    10000)
-                        echo "${COLOR_NETDEV_LINK_10000:-255 255 255}" > /sys/class/leds/$led/color
-                        ;;
-                esac
-            fi
-        fi
+        done
     else
-        echo "No active interfaces found"
-        # Clear device trigger
-        echo "" > /sys/class/leds/$led/device_name
+        for path in "$net_root"/*; do
+            [[ -e "$path/device" && -r "$path/type" ]] || continue
+            [[ $(<"$path/type") = 1 ]] || continue
+            printf '%s\n' "${path##*/}"
+            if [[ "$mode" = single ]]; then break; fi
+        done
     fi
+}
 
-    sleep $CHECK_NETDEV_INTERVAL
+set_color() {
+    local speed=$1 color=${COLOR_NETDEV_NORMAL:-255 165 0}
+    if [[ ${CHECK_LINK_SPEED_DYNAMIC:-false} = true ]]; then
+        color=$(awk -v speed="$speed" \
+            -v low="${CHECK_LINK_SPEED_DYNAMIC_SPEED_LOW:-0}" \
+            -v high="${CHECK_LINK_SPEED_DYNAMIC_SPEED_HIGH:-10000}" \
+            -v lc="${CHECK_LINK_SPEED_DYNAMIC_COLOR_LOW:-255 0 0}" \
+            -v hc="${CHECK_LINK_SPEED_DYNAMIC_COLOR_HIGH:-0 255 0}" '
+            BEGIN {
+                split(lc, l, " "); split(hc, h, " ");
+                r = high > low ? (speed-low)/(high-low) : 0;
+                r = r < 0 ? 0 : (r > 1 ? 1 : r);
+                printf "%.0f %.0f %.0f", l[1]+r*(h[1]-l[1]), l[2]+r*(h[2]-l[2]), l[3]+r*(h[3]-l[3]);
+            }')
+    elif [[ ${CHECK_LINK_SPEED:-false} = true ]]; then
+        case "$speed" in
+            100) color=${COLOR_NETDEV_LINK_100:-0 255 0} ;;
+            1000) color=${COLOR_NETDEV_LINK_1000:-0 0 255} ;;
+            2500) color=${COLOR_NETDEV_LINK_2500:-255 255 0} ;;
+            10000) color=${COLOR_NETDEV_LINK_10000:-255 255 255} ;;
+        esac
+    fi
+    printf '%s\n' "$color" > "$led_root/color"
+}
+
+declare -A previous_rx previous_tx
+last_color=-100000
+while true; do
+    mapfile -t interfaces < <(get_interfaces)
+    declare -A present=()
+    activity=false
+    max_speed=0
+    for iface in "${interfaces[@]}"; do
+        present[$iface]=1
+        rx=$(cat "$net_root/$iface/statistics/rx_bytes" 2>/dev/null) || continue
+        tx=$(cat "$net_root/$iface/statistics/tx_bytes" 2>/dev/null) || continue
+        [[ "$rx" =~ ^[0-9]+$ && "$tx" =~ ^[0-9]+$ ]] || continue
+        # A counter reset/hotplug establishes a new baseline, not activity.
+        if [[ ${NETDEV_BLINK_RX:-1} = 1 && -v previous_rx[$iface] ]] && ((rx > previous_rx[$iface])); then activity=true; fi
+        if [[ ${NETDEV_BLINK_TX:-1} = 1 && -v previous_tx[$iface] ]] && ((tx > previous_tx[$iface])); then activity=true; fi
+        previous_rx[$iface]=$rx
+        previous_tx[$iface]=$tx
+        speed=$(cat "$net_root/$iface/speed" 2>/dev/null) || speed=0
+        if [[ "$speed" =~ ^[0-9]+$ ]] && ((speed > max_speed)); then max_speed=$speed; fi
+    done
+    for iface in "${!previous_rx[@]}"; do
+        if [[ ! -v present[$iface] ]]; then
+            unset 'previous_rx[$iface]' 'previous_tx[$iface]'
+        fi
+    done
+    if $activity; then printf '1\n' > "$led_root/shot"; fi
+    if ((SECONDS - last_color >= ${CHECK_NETDEV_INTERVAL:-60})); then
+        set_color "$max_speed"
+        last_color=$SECONDS
+    fi
+    sleep "$interval"
 done

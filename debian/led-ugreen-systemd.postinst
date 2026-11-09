@@ -1,0 +1,57 @@
+#!/bin/sh
+set -e
+. /usr/share/debconf/confmodule
+
+#DEBHELPER#
+
+if [ "$1" = configure ]; then
+    units="ugreen-probe-leds.service ugreen-power-led.service ugreen-diskiomon.service ugreen-netdevmon-multi.service"
+    state=/var/lib/led-ugreen-systemd
+    # A state marker also preserves an initial opt-out on remove/reinstall.
+    if [ ! -e "$state/configured" ] && [ -z "${2:-}" ]; then
+        db_get led-ugreen-systemd/configure-services
+        if [ "$RET" = true ]; then
+            db_get led-ugreen-systemd/network-mode
+            mode=$RET
+            case "$mode" in single|multi|all) ;; *) exit 1;; esac
+            db_get led-ugreen-systemd/network-interface
+            interfaces=$RET
+            # Values are sourced by Bash later. Allow interface-name characters
+            # only; never interpret shell text supplied through debconf.
+            case "$interfaces" in *[!a-zA-Z0-9_.:\ -]*) echo 'Invalid network interface names' >&2; exit 1;; esac
+            if [ "$mode" = single ] && [ -n "$interfaces" ]; then
+                set -- $interfaces
+                [ "$#" -eq 1 ] || { echo 'Single mode requires one interface' >&2; exit 1; }
+            fi
+            install -d /etc/ugreen-leds
+            # This maintscript-managed file is only initialized once. It is
+            # separate from the utils package's administrator-owned conffile.
+            if [ ! -e /etc/ugreen-leds/network.conf ]; then
+                umask 022
+                printf 'NETWORK_MODE="%s"\nNETWORK_INTERFACES="%s"\n' "$mode" "$interfaces" > /etc/ugreen-leds/network.conf
+            fi
+            db_get led-ugreen-systemd/enable-services
+            if [ "$RET" = true ]; then
+                for unit in $units; do
+                    deb-systemd-helper unmask "$unit" >/dev/null || true
+                    # dh_installsystemd may already have recorded a disabled state.
+                    # Explicit first-install consent must create the links.
+                    deb-systemd-helper reenable "$unit" >/dev/null
+                done
+                if [ -d /run/systemd/system ]; then
+                    deb-systemd-invoke start $units || true
+                fi
+            fi
+        fi
+    elif [ -d /run/systemd/system ]; then
+        # Restart only running services; preserve disabled and stopped services.
+        for unit in $units; do
+            if systemctl --quiet is-active "$unit"; then
+                deb-systemd-invoke restart "$unit" || true
+            fi
+        done
+    fi
+    install -d "$state"
+    touch "$state/configured"
+fi
+db_stop

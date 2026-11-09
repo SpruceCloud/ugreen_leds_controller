@@ -1,0 +1,10 @@
+scripts/ugreen-detect-disks usr/bin
+scripts/ugreen-detect-network usr/bin
+scripts/ugreen-diskiomon usr/bin
+scripts/ugreen-netdevmon usr/bin
+scripts/ugreen-netdevmon-multi usr/bin
+scripts/ugreen-power-led usr/bin
+scripts/ugreen-probe-leds usr/bin
+scripts/ugreen-leds.conf etc
+debian/build/ugreen-blink-disk usr/bin
+debian/build/ugreen-check-standby usr/bin

@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 
 # UGREEN disk mapping detection script
 # Outputs disk-to-LED mapping based on selected method

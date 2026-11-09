@@ -1,0 +1,9 @@
+usr/share/man/man1/ugreen-led-tools.1.gz usr/share/man/man1/ugreen-blink-disk.1.gz
+usr/share/man/man1/ugreen-led-tools.1.gz usr/share/man/man1/ugreen-check-standby.1.gz
+usr/share/man/man1/ugreen-led-tools.1.gz usr/share/man/man1/ugreen-detect-disks.1.gz
+usr/share/man/man1/ugreen-led-tools.1.gz usr/share/man/man1/ugreen-detect-network.1.gz
+usr/share/man/man1/ugreen-led-tools.1.gz usr/share/man/man1/ugreen-diskiomon.1.gz
+usr/share/man/man1/ugreen-led-tools.1.gz usr/share/man/man1/ugreen-netdevmon.1.gz
+usr/share/man/man1/ugreen-led-tools.1.gz usr/share/man/man1/ugreen-netdevmon-multi.1.gz
+usr/share/man/man1/ugreen-led-tools.1.gz usr/share/man/man1/ugreen-power-led.1.gz
+usr/share/man/man1/ugreen-led-tools.1.gz usr/share/man/man1/ugreen-probe-leds.1.gz

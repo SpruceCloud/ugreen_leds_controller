@@ -1,28 +1,14 @@
-# Parametrizable Debian version, defaults to bookworm
-ARG DEBIAN_VERSION=trixie
-FROM --platform=linux/amd64 debian:${DEBIAN_VERSION}
-
-RUN set -ex \
-    && sed -i -- 's/Types: deb/Types: deb deb-src/g' /etc/apt/sources.list.d/debian.sources \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
-               build-essential \
-               cdbs \
-               devscripts \
-               equivs \
-               fakeroot \
-               wget \
-               git \
-               debhelper \
-               dh-make \
-               dh-dkms \
-               dkms \
-    && apt-get clean \
-    && rm -rf /tmp/* /var/tmp/*
-
-# Install g++ for compiling C++ utilities
-RUN apt-get update && apt-get install -y g++ && apt-get clean
-
+ARG DEBIAN_VERSION=bookworm
+ARG DEBIAN_IMAGE=debian:${DEBIAN_VERSION}
+FROM ${DEBIAN_IMAGE}
+ARG DEBIAN_VERSION
+ARG DEBIAN_SNAPSHOT=
+# Debian 11 uses the archive; optional snapshots pin release build inputs.
+COPY configure-apt.sh /usr/local/sbin/ugreen-configure-apt
+RUN set -eux; \
+    sh /usr/local/sbin/ugreen-configure-apt; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends build-essential dpkg-dev debhelper fakeroot dkms python3 git lintian debconf-utils; \
+    if [ "$DEBIAN_VERSION" != bullseye ]; then apt-get install -y --no-install-recommends dh-dkms; fi; \
+    rm -rf /var/lib/apt/lists/*
 WORKDIR /build
-
-

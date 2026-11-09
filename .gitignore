@@ -15,3 +15,17 @@ compile_commands.json
 .cache
 Module.symvers
 release
+
+/build-scripts/debian/build/
+/debian/.debhelper/
+/debian/debhelper-build-stamp
+/debian/files
+/debian/build/
+/debian/led-ugreen-*/
+/debian/*.debhelper
+/debian/*.substvars
+/debian/*.debhelper.log
+*.deb
+*.buildinfo
+*.changes
+__pycache__/

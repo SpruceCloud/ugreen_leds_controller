@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ] && dpkg --compare-versions "${2:-0}" lt 0.3-2; then
+    # Older packages generated this untracked file at installation time.
+    # Remove only the exact old default; preserve administrator modifications.
+    old=/etc/modules-load.d/led-ugreen.conf
+    if [ -f "$old" ] && [ "$(cat "$old")" = "$(printf '# UGREEN LED driver modules\ni2c-dev\nled-ugreen\nledtrig-oneshot\nledtrig-netdev')" ]; then
+        rm -f "$old"
+    fi
+fi
+#DEBHELPER#

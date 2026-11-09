@@ -1,22 +1,8 @@
-#!/usr/bin/bash
+#!/bin/bash
 
-# function for removing lockfile
-exit-ugreen-netdevmon() {
-  if [[ -f "/var/run/ugreen-netdevmon.lock" ]]; then
-    rm "/var/run/ugreen-netdevmon.lock"
-  fi
-  exit 0
-}
-
-# trap exit and remove lockfile
-trap 'exit-ugreen-netdevmon' EXIT INT TERM
-
-# check if script is already running
-if [[ -f "/var/run/ugreen-netdevmon.lock" ]]; then
-  echo "ugreen-netdevmon already running!"
-  exit 1
-fi
-touch /var/run/ugreen-netdevmon.lock
+# Hold an advisory lock for the duration of the process.
+exec 9>/run/ugreen-netdevmon.lock
+flock -n 9 || { echo "ugreen-netdevmon already running!" >&2; exit 1; }
 
 { lsmod | grep ledtrig_netdev > /dev/null; } || { modprobe -v ledtrig_netdev && sleep 2; }
 
@@ -82,7 +68,7 @@ function set_netdev_normal_color() {
     echo $color > /sys/class/leds/$led/color
 }
 
-if [[ $CHECK_GATEWAY_CONNECTIVITY == false && $CHECK_LINK_SPEED == false ]]; then
+if [[ $CHECK_GATEWAY_CONNECTIVITY == false && $CHECK_LINK_SPEED == false && $CHECK_LINK_SPEED_DYNAMIC == false ]]; then
     exit 0
 fi
 

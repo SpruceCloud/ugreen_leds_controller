@@ -1,0 +1,50 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/pkg-info.mk
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+include /usr/share/dpkg/buildflags.mk
+export CXXFLAGS CPPFLAGS LDFLAGS
+PACKAGES := $(shell dh_listpackages)
+# Older debhelper/Lintian expect /lib; modern releases require /usr/lib.
+SYSTEMD_UNITDIR := $(shell if dpkg --compare-versions "$$(dpkg-query -W -f='$${Version}' debhelper)" lt 13.24; then echo lib/systemd/system; else echo usr/lib/systemd/system; fi)
+
+%:
+	dh $@ --with dkms
+
+override_dh_auto_configure:
+
+override_dh_auto_build:
+ifneq (,$(filter led-ugreen-cli,$(PACKAGES)))
+	$(MAKE) -C cli
+endif
+ifneq (,$(filter led-ugreen-utils,$(PACKAGES)))
+	mkdir -p debian/build
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++17 scripts/blink-disk.cpp $(LDFLAGS) -o debian/build/ugreen-blink-disk
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++17 scripts/check-standby.cpp $(LDFLAGS) -o debian/build/ugreen-check-standby
+endif
+
+override_dh_auto_test:
+	python3 -m unittest discover -s debian/tests -p 'test_*.py'
+
+override_dh_auto_install:
+ifneq (,$(filter led-ugreen-dkms,$(PACKAGES)))
+	install -d debian/led-ugreen-dkms/usr/src/led-ugreen-$(DEB_VERSION_UPSTREAM)
+	install -m 644 kmod/led-ugreen.c kmod/led-ugreen.h kmod/Makefile debian/led-ugreen-dkms/usr/src/led-ugreen-$(DEB_VERSION_UPSTREAM)/
+	install -D -m 644 debian/led-ugreen.modules-load debian/led-ugreen-dkms/usr/lib/modules-load.d/led-ugreen.conf
+endif
+ifneq (,$(filter led-ugreen-systemd,$(PACKAGES)))
+	install -d debian/led-ugreen-systemd/$(SYSTEMD_UNITDIR)
+	install -m 644 scripts/systemd/*.service debian/led-ugreen-systemd/$(SYSTEMD_UNITDIR)/
+endif
+
+override_dh_dkms:
+ifneq (,$(filter led-ugreen-dkms,$(PACKAGES)))
+	dh_dkms -V $(DEB_VERSION_UPSTREAM)
+endif
+
+override_dh_installsystemd:
+	dh_installsystemd --no-enable --no-start --no-stop-on-upgrade
+
+override_dh_auto_clean:
+	$(MAKE) -C cli clean
+	rm -rf debian/build

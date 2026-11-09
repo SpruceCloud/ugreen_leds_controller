@@ -1,0 +1,24 @@
+name: Debian packages
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  packages:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        release: [bullseye, bookworm, trixie]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build, lint and test package lifecycle
+        env:
+          DEBIAN_VERSION: ${{ matrix.release }}
+        run: ./build-scripts/debian/build-and-test.sh --local
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debian-${{ matrix.release }}
+          path: build-scripts/debian/build/${{ matrix.release }}/

@@ -145,12 +145,14 @@ There are three methods to install the module:
 - **B)** Alternatively, you can install it with dkms:
 
   ```bash
-  cp -r kmod /usr/src/led-ugreen-0.1
-  dkms add -m led-ugreen -v 0.1
-  dkms build -m led-ugreen -v 0.1 && dkms install -m led-ugreen -v 0.1
+  cp -r kmod /usr/src/led-ugreen-0.3
+  dkms add -m led-ugreen -v 0.3
+  dkms build -m led-ugreen -v 0.3 && dkms install -m led-ugreen -v 0.3
   ```
 
 - **C)** You can also directly install the `.deb` package [here](https://github.com/miskcoo/ugreen_leds_controller/releases).
+
+For building Debian packages and testing their installation, see [the Debian packaging guide](build-scripts/debian/README.md).
 
 After loading the `led-ugreen` module, you need to run `scripts/ugreen-probe-leds`, and you can see LEDs in `/sys/class/leds`.
 

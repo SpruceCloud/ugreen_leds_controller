@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 
 # use variables from config file (unRAID specific)
 if [[ -f /boot/config/plugins/ugreenleds-driver/settings.cfg ]]; then

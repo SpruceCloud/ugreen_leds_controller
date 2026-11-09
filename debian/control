@@ -1,0 +1,38 @@
+Source: led-ugreen
+Section: admin
+Priority: optional
+Maintainer: Yuhao Zhou <miskcoo@gmail.com>
+Build-Depends: debhelper-compat (= 13), dkms, dh-dkms | dkms (<< 3), g++, python3, git
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+Homepage: https://github.com/miskcoo/ugreen_leds_controller
+
+Package: led-ugreen-dkms
+Section: kernel
+Architecture: all
+Depends: ${misc:Depends}
+Recommends: i2c-tools, linux-headers-amd64
+Provides: led-ugreen-kernel
+Description: UGREEN NAS LED driver sources for DKMS
+ Kernel module sources for automatic rebuilding on kernel updates.
+
+Package: led-ugreen-cli
+Architecture: amd64
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Breaks: led-ugreen-utils (<< 0.3)
+Description: UGREEN NAS LED command-line controller
+ Direct I2C control of LED states, colors, brightness and blinking.
+ Unload the led-ugreen kernel module before using this controller.
+
+Package: led-ugreen-utils
+Architecture: amd64
+Depends: ${shlibs:Depends}, ${misc:Depends}, led-ugreen-dkms (>= ${source:Upstream-Version}), bash (>= 4.3), dmidecode, smartmontools, i2c-tools, kmod, iproute2, iputils-ping, bc, procps
+Recommends: led-ugreen-systemd
+Description: UGREEN NAS LED monitoring utilities
+ Disk and network activity monitors, SMART health checks and LED setup.
+
+Package: led-ugreen-systemd
+Architecture: all
+Depends: ${misc:Depends}, led-ugreen-utils (>= ${source:Upstream-Version}), debconf (>= 0.5) | debconf-2.0
+Description: UGREEN NAS LED systemd services
+ Services and optional initial network and boot configuration.

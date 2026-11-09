@@ -1,0 +1,26 @@
+Template: led-ugreen-systemd/configure-services
+Type: boolean
+Default: true
+Description: Configure UGREEN LED services automatically?
+ Configure network monitoring and optionally enable services at boot.
+ Disk mapping and LED appearance remain in /etc/ugreen-leds.conf.
+
+Template: led-ugreen-systemd/network-mode
+Type: select
+Choices: single, multi, all
+Default: all
+Description: Network interface monitoring mode:
+ Select one interface, selected interfaces, or all physical Ethernet devices.
+ Traffic from every selected interface contributes to the network LED.
+
+Template: led-ugreen-systemd/network-interface
+Type: string
+Description: Network interfaces to monitor:
+ Enter one interface for single mode, or space-separated interfaces for multi
+ mode (for example, enp2s0 enp3s0). Leave blank to detect physical interfaces.
+
+Template: led-ugreen-systemd/enable-services
+Type: boolean
+Default: true
+Description: Enable and start UGREEN LED services?
+ Enable services at boot and start them now if systemd is running.

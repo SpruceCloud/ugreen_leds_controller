@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 
 # UGREEN network interface detection script
 # Outputs available physical ethernet interfaces

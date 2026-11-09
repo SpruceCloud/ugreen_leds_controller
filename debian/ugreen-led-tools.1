@@ -1,0 +1,62 @@
+.TH UGREEN-LED-TOOLS 1 "2026-11-09" "UGREEN LED controller" "User Commands"
+.SH NAME
+ugreen-blink-disk, ugreen-check-standby, ugreen-detect-disks, ugreen-detect-network, ugreen-diskiomon, ugreen-netdevmon, ugreen-netdevmon-multi, ugreen-power-led, ugreen-probe-leds \- configure and monitor UGREEN NAS LEDs
+.SH SYNOPSIS
+.B ugreen-probe-leds
+.br
+.B ugreen-detect-disks
+.RI [ ata | hctl | serial ]
+.br
+.B ugreen-detect-network
+.br
+.B ugreen-diskiomon
+.br
+.B ugreen-netdevmon
+.I interface
+.br
+.B ugreen-netdevmon-multi
+.br
+.B ugreen-power-led
+.br
+.B ugreen-blink-disk
+.I interval device led
+.RI [ device " " led ...]
+.br
+.B ugreen-check-standby
+.I interval standby-color normal-colors device led
+.RI [ device " " led ...]
+.SH DESCRIPTION
+These tools require compatible UGREEN hardware. Run LED setup and monitoring
+as root. Configuration is read from /etc/ugreen-leds.conf.
+.PP
+ugreen-probe-leds loads the driver and registers the LED controller on the
+Intel I801 SMBus. It requires the DKMS module and matching kernel headers.
+.PP
+ugreen-diskiomon monitors disk activity, standby and optional health state.
+Verify physical disk-slot mapping before relying on its LED indications.
+.PP
+ugreen-netdevmon uses the kernel netdev trigger for one interface.
+ugreen-netdevmon-multi aggregates RX/TX counters for selected or all physical
+Ethernet interfaces. Run only one network monitor at a time.
+.PP
+ugreen-power-led applies the configured power LED appearance. The detection
+tools print suggested disk mappings and available network interfaces.
+.PP
+ugreen-blink-disk and ugreen-check-standby are helpers normally started by
+ugreen-diskiomon. Intervals are in seconds. Devices are block-device basenames
+such as sda; LEDs are names such as disk1. Colors are quoted RGB triples;
+normal-colors is a comma-separated list of triples, one for each device.
+.SH FILES
+.TP
+.I /etc/ugreen-leds.conf
+Administrator configuration, preserved by dpkg.
+.TP
+.I /etc/ugreen-leds/network.conf
+Initial Debian network selections. Settings in the main configuration override
+these selections. NETWORK_MODE is single, multi or all; NETWORK_INTERFACES is
+a space-separated list. NETDEV_BLINK_RX and NETDEV_BLINK_TX control activity
+sampling. NETDEV_POLL_INTERVAL defaults to 0.1 seconds.
+.SH SEE ALSO
+.BR ugreen_leds_cli (1),
+.BR systemctl (1),
+.BR dkms (8)

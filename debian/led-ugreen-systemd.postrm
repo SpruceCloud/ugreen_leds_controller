@@ -1,0 +1,14 @@
+#!/bin/sh
+set -e
+#DEBHELPER#
+if [ "$1" = purge ]; then
+    rm -f /etc/ugreen-leds/network.conf /var/lib/led-ugreen-systemd/configured
+    rmdir /etc/ugreen-leds /var/lib/led-ugreen-systemd 2>/dev/null || true
+    # Remove state and enablement for legacy template instances as well.
+    for link in /etc/systemd/system/*.wants/ugreen-netdevmon@*.service; do
+        [ -L "$link" ] || continue
+        unit=${link##*/}
+        deb-systemd-helper purge "$unit" >/dev/null || true
+        rm -f "$link"
+    done
+fi
