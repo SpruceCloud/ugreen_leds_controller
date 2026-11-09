@@ -12,28 +12,36 @@ This repository
 
 For the process of understanding this control logic, please refer to [my blog (in Chinese)](https://blog.miskcoo.com/2024/05/ugreen-dx4600-pro-led-controller).
 
-> [!NOTE]  
-> Only tested on the following devices:
+> [!NOTE]
+> Only tested and working on the following devices:
 > - [x] UGREEN DX4600 Pro
 > - [x] UGREEN DX4700+
-> - [x] UGREEN DXP2800 (reported in [#19](https://github.com/miskcoo/ugreen_leds_controller/issues/19))
-> - [x] UGREEN DXP4800 (confirmed in [#41](https://github.com/miskcoo/ugreen_leds_controller/issues/41))
-> - [x] UGREEN DXP4800 Plus (reported [here](https://gist.github.com/Kerryliu/c380bb6b3b69be5671105fc23e19b7e8))
-> - [x] UGREEN DXP6800 Pro (reported in [#7](https://github.com/miskcoo/ugreen_leds_controller/issues/7))
-> - [x] UGREEN DXP8800 Plus (see [this repo](https://github.com/meyergru/ugreen_dxp8800_leds_controller) and [#1](https://github.com/miskcoo/ugreen_leds_controller/issues/1))
-> - [ ] UGREEN DXP480T Plus (**Not yet**, but the protocol has been understood, see [#6](https://github.com/miskcoo/ugreen_leds_controller/issues/6#issuecomment-2156807225))
+> - [x] UGREEN DXP2800 ([#19](https://github.com/miskcoo/ugreen_leds_controller/issues/19))
+> - [x] UGREEN DXP2800 V1.2 (**Experimental**, available on [v0.4-beta](https://github.com/miskcoo/ugreen_leds_controller/releases/tag/v0.4-beta), [#128](https://github.com/miskcoo/ugreen_leds_controller/issues/128))
+> - [ ] UGREEN DXP2800 GT (**WIP**, [#122](https://github.com/miskcoo/ugreen_leds_controller/issues/122), [#123](https://github.com/miskcoo/ugreen_leds_controller/issues/123))
+> - [x] UGREEN DXP4800 ([#41](https://github.com/miskcoo/ugreen_leds_controller/issues/41))
+> - [x] UGREEN DXP4800 Plus ([Gist](https://gist.github.com/Kerryliu/c380bb6b3b69be5671105fc23e19b7e8))
+> - [x] UGREEN DXP4800 Pro ([#121](https://github.com/miskcoo/ugreen_leds_controller/issues/121))
+> - [ ] UGREEN DXP4800 GT (**Experimental**, available on [v0.4-beta](https://github.com/miskcoo/ugreen_leds_controller/releases/tag/v0.4-beta), [#100](https://github.com/miskcoo/ugreen_leds_controller/pull/100))
+> - [x] UGREEN DXP6800 Pro ([#7](https://github.com/miskcoo/ugreen_leds_controller/issues/7))
+> - [x] UGREEN DXP8800 Plus ([#1](https://github.com/miskcoo/ugreen_leds_controller/issues/1), [Repo](https://github.com/meyergru/ugreen_dxp8800_leds_controller))
+> - [ ] UGREEN DXP480T Plus ([#6](https://github.com/miskcoo/ugreen_leds_controller/issues/6#issuecomment-2156807225))
+> - [ ] UGREEN iDX6011 (Pro) (**Experimental**, available on [v0.4-beta](https://github.com/miskcoo/ugreen_leds_controller/releases/tag/v0.4-beta), [#93](https://github.com/miskcoo/ugreen_leds_controller/issues/93), [#104](https://github.com/miskcoo/ugreen_leds_controller/pull/104))
 >
->**I am not sure whether this is compatible with other devices.  
->If you have tested it with different devices, please feel free to update the list above!**
+>**I am not sure whether this module is compatible with other devices.  
+>If you've tested it on other hardware, please feel free to update the list above!**
 >
 > Please follow the [Preparation](#Preparation) section to check if the protocol is compatible, and run `./ugreen_leds_cli all` to see which LEDs are supported by this tool.
 
 For third-party systems, I am using Debian 12 "Bookworm", but you can find some manuals for other systems:
-- **DSM**: see [#8](https://github.com/miskcoo/ugreen_leds_controller/issues/8)
-- **TrueNAS**: see [#13](https://github.com/miskcoo/ugreen_leds_controller/issues/13) and [this repo](https://github.com/0x556c79/install-ugreen-leds-controller) (and maybe [here](https://github.com/miskcoo/ugreen_leds_controller/tree/truenas-build/build-scripts/truenas)) for how to build the module, and [here](https://gist.github.com/Kerryliu/c380bb6b3b69be5671105fc23e19b7e8) for a script using the cli tool; [here](https://github.com/miskcoo/ugreen_leds_controller/tree/gh-actions/build-scripts/truenas/build) for pre-build drivers 
-- **unRAID**: there is a [plugin](https://forums.unraid.net/topic/168423-ugreen-nas-led-control/); see also [this repo](https://github.com/ich777/unraid-ugreenleds-driver/tree/master/source/usr/bin)
-- **Proxmox**: you need to use the cli tool in Proxmox, not in a VM
 - **Debian**: see [the section below](#start-at-boot-for-debian-12)
+- **DSM**: see [#8](https://github.com/miskcoo/ugreen_leds_controller/issues/8)
+- **Proxmox**: you need to use the CLI tool in Proxmox, not in a VM
+- **TrueNAS**:
+  - see [#13](https://github.com/miskcoo/ugreen_leds_controller/issues/13) and [this repo](https://github.com/0x556c79/install-ugreen-leds-controller) (and maybe [here](https://github.com/miskcoo/ugreen_leds_controller/tree/truenas-build/build-scripts/truenas)) for how to build the module
+  - look [here](https://gist.github.com/Kerryliu/c380bb6b3b69be5671105fc23e19b7e8) for a script using the CLI tool
+  - check [here](https://github.com/miskcoo/ugreen_leds_controller/tree/gh-actions/build-scripts/truenas/build) for pre-build drivers. The default directories are built from `master`; tag builds, such as `v0.3` and `v0.4-beta`, are under `tags/<tag>/`.
+- **unRAID**: there is a [plugin](https://forums.unraid.net/topic/168423-ugreen-nas-led-control/) ([related repo](https://github.com/ich777/unraid-ugreenleds-driver/tree/master/source/usr/bin))
 
 Below is an example:  
 ![](https://blog.miskcoo.com/assets/images/dx4600-pro-leds.gif)
@@ -41,7 +49,7 @@ Below is an example:
 It can be achieved by the following commands:
 ```bash
 ugreen_leds_cli all -off -status
-ugreen_leds_cli power  -color 255 0 255 -blink 400 600 
+ugreen_leds_cli power  -color 255 0 255 -blink 400 600
 sleep 0.1
 ugreen_leds_cli netdev -color 255 0 0   -blink 400 600
 sleep 0.1
@@ -193,7 +201,7 @@ Please see `scripts/ugreen-leds.conf` for an example.
 - Copy files in the `scripts` directory: 
   ```bash
   # copy the scripts
-  scripts=(ugreen-diskiomon ugreen-netdevmon ugreen-probe-leds ugreen-power-led)
+  scripts=(ugreen-{detect-{disks,network},diskiomon,netdevmon{,-multi},power-led,probe-leds})
   for f in ${scripts[@]}; do
       chmod +x "scripts/$f"
       cp "scripts/$f" /usr/bin
@@ -202,19 +210,19 @@ Please see `scripts/ugreen-leds.conf` for an example.
   # copy the configuration file, you can change it if needed
   cp scripts/ugreen-leds.conf /etc/ugreen-leds.conf
   
-  # copy the systemd services 
+  # copy the systemd services
   cp scripts/systemd/*.service /etc/systemd/system/
   
   systemctl daemon-reload
   
   # change enp2s0 to the network device you want to monitor
-  systemctl start ugreen-netdevmon@enp2s0 
+  systemctl start ugreen-netdevmon@enp2s0
   systemctl start ugreen-diskiomon
   systemctl start ugreen-power-led
   
   # if you confirm that everything works well, 
   # run the command below to make the service start at boot
-  systemctl enable ugreen-netdevmon@enp2s0 
+  systemctl enable ugreen-netdevmon@enp2s0
   systemctl enable ugreen-diskiomon
   systemctl enable ugreen-power-led
   ```
@@ -262,7 +270,7 @@ sdh  7:0:0:0    XXJDB1XX
 > [!NOTE]  
 > As far as we know, the mapping between HCTL and the disk serial are stable at each boot (see [#4](https://github.com/miskcoo/ugreen_leds_controller/pull/4) and [#9](https://github.com/miskcoo/ugreen_leds_controller/issues/9)).  
 > However, it has been reported that the exact order is model-dependent (see [#9](https://github.com/miskcoo/ugreen_leds_controller/issues/9)).  
-> - For DX4600 Pro and DXP8800 Plus, the mapping is `X:0:0:0 -> diskX`.  
+> - For DX4600 Pro, DXP4800, and DXP8800 Plus, the mapping is `X:0:0:0 -> diskX`.  
 > - For DXP6800 Pro, `0:0:0:0` and  `1:0:0:0` are mapped to `disk5` and `disk6`, and `2:0:0:0` to `6:0:0:0` are mapped to `disk1` to `disk4`.
 >
 > The script will use `dmidecode` to detect the device model, but I suggest to check the mapping outputed by the script manually.

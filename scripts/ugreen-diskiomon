@@ -5,14 +5,12 @@ exit-ugreen-diskiomon() {
   if [[ -f "/var/run/ugreen-diskiomon.lock" ]]; then
     rm "/var/run/ugreen-diskiomon.lock"
   fi
-  kill $smart_check_pid 2>/dev/null
-  kill $zpool_check_pid 2>/dev/null
-  kill $disk_online_check_pid 2>/dev/null
-  kill $standby_checker_pid 2>/dev/null
+  [[ -n "$smart_check_pid" ]] && kill $smart_check_pid 2>/dev/null
+  [[ -n "$zpool_check_pid" ]] && kill $zpool_check_pid 2>/dev/null
+  [[ -n "$disk_online_check_pid" ]] && kill $disk_online_check_pid 2>/dev/null
+  [[ -n "$standby_checker_pid" ]] && kill $standby_checker_pid 2>/dev/null
+  exit 0
 }
-
-# trap exit and remove lockfile
-trap 'exit-ugreen-diskiomon' EXIT
 
 # check if script is already running
 if [[ -f "/var/run/ugreen-diskiomon.lock" ]]; then
@@ -20,6 +18,9 @@ if [[ -f "/var/run/ugreen-diskiomon.lock" ]]; then
   exit 1
 fi
 touch /var/run/ugreen-diskiomon.lock
+
+# trap exit and remove lockfile
+trap 'exit-ugreen-diskiomon' EXIT INT TERM
 
 # use variables from config file (unRAID specific)
 if [[ -f /boot/config/plugins/ugreenleds-driver/settings.cfg ]]; then
@@ -113,7 +114,7 @@ BRIGHTNESS_DISK_LEDS=${BRIGHTNESS_DISK_LEDS:="255"}
 { lsmod | grep ledtrig_oneshot > /dev/null; } || { modprobe -v ledtrig_oneshot && sleep 2; }
 
 function is_disk_healthy_or_standby() {
-    if [[ "$1" == "$COLOR_DISK_HEALTH" || "$1" == "$COLOR_DISK_STANDBY" ]]; then
+    if [[ "$1" == "$2" || "$1" == "$COLOR_DISK_STANDBY" ]]; then
         return 0  # 0 means successful
     else
         return 1
@@ -139,6 +140,17 @@ function disk_enumerating_string() {
     fi
 }
 
+function color_disk_health() {
+    DISK=$1
+    COLOR=""
+    if [[ -v COLOR_DISK_HEALTH_PER_DISK[$DISK] ]]; then
+        COLOR=${COLOR_DISK_HEALTH_PER_DISK[${DISK}]}
+    else
+        COLOR=$COLOR_DISK_HEALTH
+    fi
+    echo $COLOR
+}
+
 echo Enumerating disks based on $MAPPING_METHOD...
 declare -A dev_map
 while read line
@@ -146,6 +158,7 @@ do
     blk_line=($line)
     key=${blk_line[1]}
     val=${blk_line[0]}
+    [[ -z "$key" ]] && continue
     dev_map[${key}]=${val}
     echo $MAPPING_METHOD ${key} ">>" ${dev_map[${key}]}
 done <<< "$(disk_enumerating_string)"
@@ -156,16 +169,17 @@ for i in "${!led_map[@]}"; do
     led=${led_map[i]}
     if [[ -d /sys/class/leds/$led ]]; then
         echo oneshot > /sys/class/leds/$led/trigger
-        echo ${LED_INVERT:=0} > /sys/class/leds/$led/invert
+        echo ${LED_INVERT:=1} > /sys/class/leds/$led/invert
         echo 100 > /sys/class/leds/$led/delay_on
         echo 100 > /sys/class/leds/$led/delay_off
-        echo "$COLOR_DISK_HEALTH" > /sys/class/leds/$led/color
+        color_health=$(color_disk_health "$led")
+        echo "$color_health" > /sys/class/leds/$led/color
         echo "$BRIGHTNESS_DISK_LEDS" > /sys/class/leds/$led/brightness
 
         # find corresponding device
         _tmp_str=${MAPPING_METHOD}_map[@]
         _tmp_arr=(${!_tmp_str})
-        
+
         if [[ -v "dev_map[${_tmp_arr[i]}]" ]]; then
             dev=${dev_map[${_tmp_arr[i]}]}
 
@@ -185,6 +199,12 @@ for i in "${!led_map[@]}"; do
     fi
 done
 
+# early exit if all bays are empty
+if [[ ${#devices[@]} -eq 0 ]]; then
+    echo "No ATA disk devices found in bays, disk LED monitoring disabled."
+    exit 0
+fi
+
 # construct zpool device mapping
 declare -A zpool_ledmap
 if [ "$CHECK_ZPOOL" = true ]; then
@@ -192,7 +212,7 @@ if [ "$CHECK_ZPOOL" = true ]; then
     while read line
     do
         zpool_dev_line=($line)
-        zpool_dev_name=${zpool_dev_line[0]} 
+        zpool_dev_name=${zpool_dev_line[0]}
         zpool_scsi_dev_name="unknown"
         # zpool_dev_state=${zpool_dev_line[1]}
         case "$zpool_dev_name" in
@@ -210,7 +230,7 @@ if [ "$CHECK_ZPOOL" = true ]; then
                 ;;
         esac
 
-        # if the detected scsi device can be found in the mapping array 
+        # if the detected scsi device can be found in the mapping array
         #echo zpool $zpool_dev_name ">>" $zpool_scsi_dev_name ">>" ${dev_to_led_map[${zpool_scsi_dev_name}]}
         if [[ -v "dev_to_led_map[${zpool_scsi_dev_name}]" ]]; then
             zpool_ledmap[$zpool_dev_name]=${dev_to_led_map[${zpool_scsi_dev_name}]}
@@ -223,7 +243,7 @@ if [ "$CHECK_ZPOOL" = true ]; then
             while read line
             do
                 zpool_dev_line=($line)
-                zpool_dev_name=${zpool_dev_line[0]} 
+                zpool_dev_name=${zpool_dev_line[0]}
                 zpool_dev_state=${zpool_dev_line[1]}
 
                 # TODO: do something if the pool is unhealthy?
@@ -231,8 +251,9 @@ if [ "$CHECK_ZPOOL" = true ]; then
                 if [[ -v "zpool_ledmap[${zpool_dev_name}]" ]]; then
                     led=${zpool_ledmap[$zpool_dev_name]}
                     led_color=$(cat /sys/class/leds/$led/color)
+                    color_health=$(color_disk_health "$led")
 
-                    if ! is_disk_healthy_or_standby "$led_color"; then
+                    if ! is_disk_healthy_or_standby "$led_color" "$color_health"; then
                         continue;
                     fi
 
@@ -244,7 +265,7 @@ if [ "$CHECK_ZPOOL" = true ]; then
                     # ==== To recover from an error, you should restart the script ====
                     ## case "${zpool_dev_state}" in
                     ##     ONLINE)
-                    ##         # echo "$COLOR_DISK_HEALTH" > /sys/class/leds/$led/color
+                    ##         # echo "$color_health" > /sys/class/leds/$led/color
                     ##         ;;
                     ##     *)
                     ##         echo "255 0 0" > /sys/class/leds/$led/color
@@ -268,7 +289,8 @@ if [ "$CHECK_SMART" = true ]; then
         for led in "${!devices[@]}"; do
 
             led_color=$(cat /sys/class/leds/$led/color)
-            if ! is_disk_healthy_or_standby "$led_color"; then
+            color_health=$(color_disk_health "$led")
+            if ! is_disk_healthy_or_standby "$led_color" "$color_health"; then
                 continue;
             fi
 
@@ -299,7 +321,8 @@ fi
             dev=${devices[$led]}
 
             led_color=$(cat /sys/class/leds/$led/color)
-            if ! is_disk_healthy_or_standby "$led_color"; then
+            color_health=$(color_disk_health "$led")
+            if ! is_disk_healthy_or_standby "$led_color" "$color_health"; then
                 continue;
             fi
 
@@ -315,6 +338,19 @@ fi
 disk_online_check_pid=$!
 
 
+function disk_health_parameters() {
+    disk_health_colors=""
+    for i in "${!led_map[@]}"; do
+        led=${led_map[i]}
+        if [[ -v devices[$led] ]]; then
+            color_health=$(color_disk_health "$led")
+            disk_health_colors="${disk_health_colors}$color_health,"
+        fi
+    done
+    disk_health_colors=${disk_health_colors%,}
+    echo $disk_health_colors
+}
+
 diskiomon_parameters() {
     for led in "${!devices[@]}"; do
         echo ${devices[$led]} $led
@@ -325,8 +361,8 @@ diskiomon_parameters() {
 STANDBY_MON_PATH=${STANDBY_MON_PATH:=/usr/bin/ugreen-check-standby}
 STANDBY_CHECK_INTERVAL=${STANDBY_CHECK_INTERVAL:=1}
 if [ -f "${STANDBY_MON_PATH}" ]; then
-    ${STANDBY_MON_PATH} ${STANDBY_CHECK_INTERVAL} "${COLOR_DISK_STANDBY}" "${COLOR_DISK_HEALTH}" $(diskiomon_parameters) &
-    standby_checker_pid=$1
+    ${STANDBY_MON_PATH} ${STANDBY_CHECK_INTERVAL} "${COLOR_DISK_STANDBY}" "$(disk_health_parameters)" $(diskiomon_parameters) &
+    standby_checker_pid=$!
 fi
 
 # monitor disk activities
@@ -335,7 +371,7 @@ if [ -f "${BLINK_MON_PATH}" ]; then
 
     ${BLINK_MON_PATH} ${LED_REFRESH_INTERVAL} $(diskiomon_parameters)
 
-else 
+else
     declare -A diskio_data_rw
     while true; do
         for led in "${!devices[@]}"; do

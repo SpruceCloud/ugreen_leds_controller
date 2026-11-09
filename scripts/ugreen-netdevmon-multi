@@ -8,9 +8,10 @@ exit-ugreen-netdevmon-multi() {
     if [[ -f "/var/run/ugreen-netdevmon-multi.lock" ]]; then
         rm "/var/run/ugreen-netdevmon-multi.lock"
     fi
+    exit 0
 }
 
-trap 'exit-ugreen-netdevmon-multi' EXIT
+trap 'exit-ugreen-netdevmon-multi' EXIT INT TERM
 
 # Check if already running
 if [[ -f "/var/run/ugreen-netdevmon-multi.lock" ]]; then
@@ -38,7 +39,7 @@ led="netdev"
 
 # Detect all physical ethernet interfaces
 get_physical_interfaces() {
-    ls /sys/class/net/ | grep -E '^(eth|enp|eno|enx)' | while read iface; do
+    ls /sys/class/net/ | grep -E '^(eth|enp|eno|enx|nic)' | while read iface; do
         # Check if it's a physical device (not virtual)
         if [ -e "/sys/class/net/$iface/device" ]; then
             echo "$iface"
@@ -53,7 +54,6 @@ if [[ -d /sys/class/leds/$led ]]; then
     echo $NETDEV_BLINK_TX > /sys/class/leds/$led/tx
     echo $NETDEV_BLINK_RX > /sys/class/leds/$led/rx
     echo $NETDEV_BLINK_INTERVAL > /sys/class/leds/$led/interval
-    echo ${LED_INVERT:=0} > /sys/class/leds/$led/invert
     echo "$COLOR_NETDEV_NORMAL" > /sys/class/leds/$led/color
     echo $BRIGHTNESS_NETDEV_LED > /sys/class/leds/$led/brightness
 else
